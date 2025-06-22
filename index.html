@@ -211,7 +211,9 @@ document.getElementById('syncButton').addEventListener('click', loadSheetData);
 // ✅ Вставь сюда ↓↓↓
 function loadSheetData() {
   const syncBtn = document.getElementById('syncButton');
-  if (syncBtn) syncBtn.textContent = '⏳';
+  if (syncBtn) {
+    syncBtn.innerHTML = '<span class="spinning">🐾</span>';
+  }
 
   gapi.client.sheets.spreadsheets.values.get({
     spreadsheetId: '1Te4VEluOKgLJ-tusx1EJWzL2G2QuFIJrMf2cMD1ESJQ',
@@ -219,13 +221,13 @@ function loadSheetData() {
   }).then(response => {
     const values = response.result.values;
     if (values && values.length > 0) {
-      const points = values[0][1]; // ячейка B2
+      const points = values[0][1];
       document.getElementById('currentPoints').textContent = `🐾 ${points}`;
     }
-    if (syncBtn) syncBtn.textContent = '🔄';
+    if (syncBtn) syncBtn.innerHTML = '🔄';
   }, error => {
     console.error('Ошибка чтения таблицы:', error);
-    if (syncBtn) syncBtn.textContent = '❌';
+    if (syncBtn) syncBtn.innerHTML = '❌';
   });
 }
 
@@ -255,17 +257,36 @@ function loadSheetData() {
   }
 
   async function listSheetData() {
+  const syncBtn = document.getElementById('syncButton');
+  if (syncBtn) {
+    syncBtn.innerHTML = '<span class="spinning">🐾</span>';
+  }
+
+  try {
     const response = await gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: '1Te4VEluOKgLJ-tusx1EJWzL2G2QuFIJrMf2cMD1ESJQ',
-      range: 'Main!A2:D',
+      range: 'Main!A2:C',
     });
 
-    const data = response.result.values;
-    console.log('Данные из таблицы:', data);
+    const data = response.result.values || [];
 
-    // Тестовый вывод
-    document.getElementById('currentPoints').innerText = '✅ Загружено!';
+    справочник = data
+      .filter(row => row.length >= 3)
+      .map(row => ({
+        type: row[0].trim(),
+        name: row[1].trim(),
+        value: parseInt(row[2])
+      }))
+      .filter(item => !isNaN(item.value));
+
+    render();
+    document.getElementById('currentPoints').innerText = '🐾 0';
+  } catch (error) {
+    console.error('Ошибка при загрузке справочника:', error);
+  } finally {
+    if (syncBtn) syncBtn.innerHTML = '🔄';
   }
+}
 
   // Загружаем Google API и OAuth библиотеки
   window.onload = () => {
