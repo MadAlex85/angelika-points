@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Система баллов Анжелики</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    .section {
+      background: white;
+      padding: 20px;
+      margin: 20px auto;
+      max-width: 800px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    td, th {
+      border: 1px solid #ddd;
+      padding: 8px;
+    }
+    th {
+      background-color: #f0f0f0;
+    }
+    input[type="number"] {
+      width: 80px;
+    }
+    .actions {
+      text-align: right;
+    }
+    button {
+      padding: 8px 16px;
+      margin: 10px 0;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>🐾 Баллы Анжелики</h1>
+  
+  <div class="section" id="balance">
+    <h2>Текущий баланс: <span id="currentPoints">🐾 загрузка...</span></h2>
+  </div>
+
+  <div class="section" id="taskSection">
+    <h2>✅ Выполненные задания</h2>
+    <div id="taskList"></div>
+  </div>
+
+  <div class="section" id="storeSection">
+    <h2>🛍️ Магазин наград</h2>
+    <div id="storeList"></div>
+  </div>
+
+  <div class="section" id="penaltySection">
+    <h2>❌ Штрафы</h2>
+    <div id="penaltyList"></div>
+  </div>
+
+  <div class="section" id="adminSection">
+    <h2>👨‍👩‍👧 Панель родителя</h2>
+    <div>
+      <h3>Добавить/изменить запись</h3>
+      <label>Название: <input id="nameInput" type="text"></label><br>
+      <label>Тип: 
+        <select id="typeInput">
+          <option value="Задание">Задание</option>
+          <option value="Покупка">Покупка</option>
+          <option value="Штраф">Штраф</option>
+        </select>
+      </label><br>
+      <label>Баллы: <input id="valueInput" type="number"></label><br>
+      <div class="actions">
+        <button onclick="addRecord()">Добавить</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 🔧 Эти данные позже будут браться из Google Sheets через API
+    let справочник = [
+      { type: "Задание", name: "Чтение 📚", value: 20 },
+      { type: "Задание", name: "Математика 📓", value: 15 },
+      { type: "Покупка", name: "Сладость 🍭", value: -80 },
+      { type: "Штраф", name: "Планшет после 8", value: -25 }
+    ];
+
+    function render() {
+      document.getElementById("taskList").innerHTML = renderTable("Задание");
+      document.getElementById("storeList").innerHTML = renderTable("Покупка");
+      document.getElementById("penaltyList").innerHTML = renderTable("Штраф");
+      updateBalance();
+    }
+
+    function renderTable(type) {
+      const rows = справочник
+        .filter(item => item.type === type)
+        .map(item => `<tr><td>${item.name}</td><td>${item.value}</td><td><button onclick='applyPoints(${item.value})'>Применить</button></td></tr>`)
+        .join("");
+      return `<table><tr><th>Название</th><th>Баллы</th><th></th></tr>${rows}</table>`;
+    }
+
+    let currentPoints = 0;
+
+    function applyPoints(val) {
+      currentPoints += val;
+      updateBalance();
+    }
+
+    function updateBalance() {
+      document.getElementById("currentPoints").innerText = `${currentPoints} 🐾`;
+    }
+
+    function addRecord() {
+      const name = document.getElementById("nameInput").value.trim();
+      const type = document.getElementById("typeInput").value;
+      const value = parseInt(document.getElementById("valueInput").value);
+      if (!name || isNaN(value)) return alert("Заполните все поля корректно!");
+      справочник.push({ type, name, value });
+      render();
+    }
+
+    render();
+  </script>
+</body>
+</html>
