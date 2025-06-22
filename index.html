@@ -4,6 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Система баллов Анжелики</title>
+  
+   <!-- Подключаем Google API -->
+  <script src="https://apis.google.com/js/api.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
   <style>
     body {
       font-family: sans-serif;
@@ -46,6 +51,10 @@
   </style>
 </head>
 <body>
+  <div id="auth-section" style="text-align: center; margin-bottom: 20px;">
+  <button id="authorize_button">Войти через Google</button>
+  <button id="signout_button" style="display:none;">Выйти</button>
+</div>
   <h1>🐾 Баллы Анжелики</h1>
   
   <div class="section" id="balance">
@@ -132,5 +141,103 @@
 
     render();
   </script>
+<!-- Подключаем Google API -->
+<script src="https://apis.google.com/js/api.js"></script>
+
+<!-- Подключаем основной скрипт -->
+<script>
+  const CLIENT_ID = '113185812719-b2mcqg5h8maj48fa3rfudpbnr759se0u.apps.googleusercontent.com';
+  const API_KEY = 'AIza...'; // <-- сюда вставим позже, если потребуется
+
+  const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
+  const SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly';
+
+  let tokenClient;
+  let gapiInited = false;
+  let gisInited = false;
+
+  document.getElementById('authorize_button').onclick = handleAuthClick;
+  document.getElementById('signout_button').onclick = handleSignoutClick;
+
+  function gapiLoaded() {
+    gapi.load('client', initializeGapiClient);
+  }
+
+  async function initializeGapiClient() {
+    await gapi.client.init({
+      apiKey: API_KEY,
+      discoveryDocs: [DISCOVERY_DOC],
+    });
+    gapiInited = true;
+    maybeEnableButtons();
+  }
+
+  function gisLoaded() {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: '', // будет задан позже
+    });
+    gisInited = true;
+    maybeEnableButtons();
+  }
+
+  function maybeEnableButtons() {
+    if (gapiInited && gisInited) {
+      document.getElementById('authorize_button').style.display = 'block';
+    }
+  }
+
+  function handleAuthClick() {
+    tokenClient.callback = async (resp) => {
+      if (resp.error !== undefined) {
+        throw resp;
+      }
+      document.getElementById('signout_button').style.display = 'block';
+      document.getElementById('authorize_button').style.display = 'none';
+
+      await listSheetData();
+    };
+
+    tokenClient.requestAccessToken({ prompt: 'consent' });
+  }
+
+  function handleSignoutClick() {
+    const token = gapi.client.getToken();
+    if (token !== null) {
+      google.accounts.oauth2.revoke(token.access_token);
+      gapi.client.setToken('');
+      document.getElementById('authorize_button').style.display = 'block';
+      document.getElementById('signout_button').style.display = 'none';
+    }
+  }
+
+  async function listSheetData() {
+    const response = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: '1Te4VEluOKgLJ-tusx1EJWzL2G2QuFIJrMf2cMD1ESJQ',
+      range: 'Main!A2:D',
+    });
+
+    const data = response.result.values;
+    console.log('Данные из таблицы:', data);
+
+    // Тестовый вывод
+    document.getElementById('currentPoints').innerText = '✅ Загружено!';
+  }
+
+  // Загружаем Google API и OAuth библиотеки
+  window.onload = () => {
+    const gapiScript = document.createElement('script');
+    gapiScript.src = 'https://apis.google.com/js/api.js';
+    gapiScript.onload = gapiLoaded;
+    document.body.appendChild(gapiScript);
+
+    const gisScript = document.createElement('script');
+    gisScript.src = 'https://accounts.google.com/gsi/client';
+    gisScript.onload = gisLoaded;
+    document.body.appendChild(gisScript);
+  };
+</script>
+  
 </body>
 </html>
