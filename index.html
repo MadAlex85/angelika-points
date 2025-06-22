@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Система баллов Анжелики</title>
 
+  <!-- Подключаем Google API -->
   <script src="https://apis.google.com/js/api.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
@@ -58,211 +59,202 @@
   </style>
 </head>
 <body>
+  <div id="auth-section" style="text-align: center; margin-bottom: 20px;">
+    <button id="authorize_button">Войти через Google</button>
+    <button id="signout_button" style="display:none;">Выйти</button>
+  </div>
 
-<div id="auth-section" style="text-align: center; margin-bottom: 20px;">
-  <button id="authorize_button">Войти через Google</button>
-  <button id="signout_button" style="display:none;">Выйти</button>
-</div>
+  <h1>
+    🐾 Баллы Анжелики
+    <button id="syncButton" style="margin-left: 10px; font-size: 18px; cursor: pointer;">🔄</button>
+  </h1>
 
-<h1>
-  🐾 Баллы Анжелики
-  <button id="syncButton" style="margin-left: 10px; font-size: 18px; cursor: pointer;">🔄</button>
-</h1>
+  <div class="section" id="balance">
+    <h2>Текущий баланс: <span id="currentPoints">🐾 загрузка...</span></h2>
+  </div>
 
-<div class="section" id="balance">
-  <h2>Текущий баланс: <span id="currentPoints">🐾 загрузка...</span></h2>
-</div>
+  <div class="section" id="taskSection">
+    <h2>✅ Выполненные задания</h2>
+    <div id="taskList"></div>
+  </div>
 
-<div class="section" id="taskSection">
-  <h2>✅ Выполненные задания</h2>
-  <div id="taskList"></div>
-</div>
+  <div class="section" id="storeSection">
+    <h2>🛍️ Магазин наград</h2>
+    <div id="storeList"></div>
+  </div>
 
-<div class="section" id="storeSection">
-  <h2>🛍️ Магазин наград</h2>
-  <div id="storeList"></div>
-</div>
+  <div class="section" id="penaltySection">
+    <h2>❌ Штрафы</h2>
+    <div id="penaltyList"></div>
+  </div>
 
-<div class="section" id="penaltySection">
-  <h2>❌ Штрафы</h2>
-  <div id="penaltyList"></div>
-</div>
-
-<div class="section" id="adminSection">
-  <h2>👨‍👩‍👧 Панель родителя</h2>
-  <div>
-    <h3>Добавить/изменить запись</h3>
-    <label>Название: <input id="nameInput" type="text"></label><br>
-    <label>Тип: 
-      <select id="typeInput">
-        <option value="Задание">Задание</option>
-        <option value="Покупка">Покупка</option>
-        <option value="Штраф">Штраф</option>
-      </select>
-    </label><br>
-    <label>Баллы: <input id="valueInput" type="number"></label><br>
-    <div class="actions">
-      <button onclick="addRecord()">Добавить</button>
+  <div class="section" id="adminSection">
+    <h2>👨‍👩‍👧 Панель родителя</h2>
+    <div>
+      <h3>Добавить/изменить запись</h3>
+      <label>Название: <input id="nameInput" type="text"></label><br>
+      <label>Тип: 
+        <select id="typeInput">
+          <option value="Задание">Задание</option>
+          <option value="Покупка">Покупка</option>
+          <option value="Штраф">Штраф</option>
+        </select>
+      </label><br>
+      <label>Баллы: <input id="valueInput" type="number"></label><br>
+      <div class="actions">
+        <button onclick="addRecord()">Добавить</button>
+      </div>
     </div>
   </div>
-</div>
 
-<script>
-  const CLIENT_ID = '113185812719-b2mcqg5h8maj48fa3rfudpbnr759se0u.apps.googleusercontent.com';
-  const API_KEY = 'AIza...'; // ← вставь свой API Key
-  const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
-  const SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly';
-  const SPREADSHEET_ID = '1Te4VEluOKgLJ-tusx1EJWzL2G2QuFIJrMf2cMD1ESJQ';
+  <script>
+    const CLIENT_ID = '113185812719-b2mcqg5h8maj48fa3rfudpbnr759se0u.apps.googleusercontent.com';
+    const API_KEY = 'AIzaSyC9MH2R3-DQ6VBF8xpuoezA3Pq27kbb2rE';
+    const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
+    const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 
-  let gapiInited = false;
-  let gisInited = false;
-  let tokenClient;
-  let справочник = [];
-  let currentPoints = 0;
+    let tokenClient;
+    let gapiInited = false;
+    let gisInited = false;
+    let currentPoints = 0;
+    let справочник = [];
 
-  document.getElementById('authorize_button').onclick = handleAuthClick;
-  document.getElementById('signout_button').onclick = handleSignoutClick;
+    document.getElementById('authorize_button').onclick = handleAuthClick;
+    document.getElementById('signout_button').onclick = handleSignoutClick;
+    document.getElementById('syncButton').onclick = loadAllData;
 
-  function gapiLoaded() {
-    gapi.load('client', initializeGapiClient);
-  }
-
-  async function initializeGapiClient() {
-    await gapi.client.init({
-      apiKey: API_KEY,
-      discoveryDocs: [DISCOVERY_DOC],
-    });
-    gapiInited = true;
-    maybeEnableButtons();
-
-    await updateUIFromSheet(); // начальная загрузка
-    setInterval(updateUIFromSheet, 60 * 60 * 1000); // раз в час
-    document.getElementById('syncButton').addEventListener('click', updateUIFromSheet);
-  }
-
-  function gisLoaded() {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
-      scope: SCOPES,
-      callback: '',
-    });
-    gisInited = true;
-    maybeEnableButtons();
-  }
-
-  function maybeEnableButtons() {
-    if (gapiInited && gisInited) {
-      document.getElementById('authorize_button').style.display = 'block';
+    function gapiLoaded() {
+      gapi.load('client', initializeGapiClient);
     }
-  }
 
-  async function updateUIFromSheet() {
-    const syncBtn = document.getElementById('syncButton');
-    if (syncBtn) syncBtn.innerHTML = '<span class="spinning">🐾</span>';
+    async function initializeGapiClient() {
+      await gapi.client.init({ apiKey: API_KEY, discoveryDocs: [DISCOVERY_DOC] });
+      gapiInited = true;
+      maybeEnableButtons();
+      loadAllData();
+      setInterval(loadAllData, 60000); // автообновление каждую минуту
+    }
 
-    try {
-      const mainData = await gapi.client.sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID,
-        range: 'Main!A2:C',
+    function gisLoaded() {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: '',
       });
+      gisInited = true;
+      maybeEnableButtons();
+    }
 
-      const rows = mainData.result.values || [];
-      справочник = rows
-        .filter(row => row.length >= 3)
-        .map(row => ({
-          type: row[0].trim(),
-          name: row[1].trim(),
-          value: parseInt(row[2])
-        }))
-        .filter(item => !isNaN(item.value));
-
-      const balanceData = await gapi.client.sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID,
-        range: 'Баланс!A2:B2',
-      });
-
-      const balanceValues = balanceData.result.values;
-      if (balanceValues && balanceValues.length > 0) {
-        const points = parseInt(balanceValues[0][1]);
-        if (!isNaN(points)) {
-          currentPoints = points;
-        }
+    function maybeEnableButtons() {
+      if (gapiInited && gisInited) {
+        document.getElementById('authorize_button').style.display = 'block';
       }
-
-      render();
-    } catch (error) {
-      console.error('Ошибка при загрузке данных:', error);
-      alert('Ошибка при загрузке данных. Проверьте консоль.');
-    } finally {
-      if (syncBtn) syncBtn.innerHTML = '🔄';
     }
-  }
 
-  function handleAuthClick() {
-    tokenClient.callback = async (resp) => {
-      if (resp.error !== undefined) throw resp;
-      document.getElementById('signout_button').style.display = 'block';
-      document.getElementById('authorize_button').style.display = 'none';
-      await updateUIFromSheet();
+    function handleAuthClick() {
+      tokenClient.callback = async (resp) => {
+        if (resp.error !== undefined) throw resp;
+        document.getElementById('signout_button').style.display = 'block';
+        document.getElementById('authorize_button').style.display = 'none';
+        await loadAllData();
+      };
+      tokenClient.requestAccessToken({ prompt: 'consent' });
+    }
+
+    function handleSignoutClick() {
+      const token = gapi.client.getToken();
+      if (token) {
+        google.accounts.oauth2.revoke(token.access_token);
+        gapi.client.setToken('');
+        document.getElementById('authorize_button').style.display = 'block';
+        document.getElementById('signout_button').style.display = 'none';
+      }
+    }
+
+    async function loadAllData() {
+      const btn = document.getElementById('syncButton');
+      btn.innerHTML = '<span class="spinning">🐾</span>';
+      await Promise.all([loadDictionary(), loadBalance()]);
+      btn.innerHTML = '🔄';
+    }
+
+    async function loadDictionary() {
+      try {
+        const res = await gapi.client.sheets.spreadsheets.values.get({
+          spreadsheetId: '1Te4VEluOKgLJ-tusx1EJWzL2G2QuFIJrMf2cMD1ESJQ',
+          range: 'Main!A2:C',
+        });
+        справочник = (res.result.values || []).map(row => ({
+          type: row[0], name: row[1], value: parseInt(row[2])
+        })).filter(r => !isNaN(r.value));
+        render();
+      } catch (err) { console.error('Ошибка справочника:', err); }
+    }
+
+    async function loadBalance() {
+      try {
+        const res = await gapi.client.sheets.spreadsheets.values.get({
+          spreadsheetId: '1Te4VEluOKgLJ-tusx1EJWzL2G2QuFIJrMf2cMD1ESJQ',
+          range: 'Баланс!B2'
+        });
+        currentPoints = parseInt(res.result.values[0][0]) || 0;
+        updateBalance();
+      } catch (err) { console.error('Ошибка баланса:', err); }
+    }
+
+    async function applyPoints(val) {
+      currentPoints += val;
+      updateBalance();
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: '1Te4VEluOKgLJ-tusx1EJWzL2G2QuFIJrMf2cMD1ESJQ',
+        range: 'Баланс!B2',
+        valueInputOption: 'RAW',
+        resource: { values: [[currentPoints]] }
+      });
+    }
+
+    function render() {
+      document.getElementById("taskList").innerHTML = renderTable("Задание");
+      document.getElementById("storeList").innerHTML = renderTable("Покупка");
+      document.getElementById("penaltyList").innerHTML = renderTable("Штраф");
+      updateBalance();
+    }
+
+    function renderTable(type) {
+      const rows = справочник.filter(r => r.type === type).map(r =>
+        `<tr><td>${r.name}</td><td>${r.value}</td><td><button onclick='applyPoints(${r.value})'>Применить</button></td></tr>`).join('');
+      return `<table><tr><th>Название</th><th>Баллы</th><th></th></tr>${rows}</table>`;
+    }
+
+    function updateBalance() {
+      document.getElementById("currentPoints").innerText = `${currentPoints} 🐾`;
+    }
+
+    async function addRecord() {
+      const name = document.getElementById("nameInput").value.trim();
+      const type = document.getElementById("typeInput").value;
+      const value = parseInt(document.getElementById("valueInput").value);
+      if (!name || isNaN(value)) return alert("Заполните все поля!");
+      await gapi.client.sheets.spreadsheets.values.append({
+        spreadsheetId: '1Te4VEluOKgLJ-tusx1EJWzL2G2QuFIJrMf2cMD1ESJQ',
+        range: 'Main!A:C',
+        valueInputOption: 'USER_ENTERED',
+        resource: { values: [[type, name, value]] }
+      });
+      await loadDictionary();
+    }
+
+    window.onload = () => {
+      const gapiScript = document.createElement('script');
+      gapiScript.src = 'https://apis.google.com/js/api.js';
+      gapiScript.onload = gapiLoaded;
+      document.body.appendChild(gapiScript);
+
+      const gisScript = document.createElement('script');
+      gisScript.src = 'https://accounts.google.com/gsi/client';
+      gisScript.onload = gisLoaded;
+      document.body.appendChild(gisScript);
     };
-    tokenClient.requestAccessToken({ prompt: 'consent' });
-  }
-
-  function handleSignoutClick() {
-    const token = gapi.client.getToken();
-    if (token !== null) {
-      google.accounts.oauth2.revoke(token.access_token);
-      gapi.client.setToken('');
-      document.getElementById('authorize_button').style.display = 'block';
-      document.getElementById('signout_button').style.display = 'none';
-    }
-  }
-
-  function render() {
-    document.getElementById("taskList").innerHTML = renderTable("Задание");
-    document.getElementById("storeList").innerHTML = renderTable("Покупка");
-    document.getElementById("penaltyList").innerHTML = renderTable("Штраф");
-    updateBalance();
-  }
-
-  function renderTable(type) {
-    const rows = справочник
-      .filter(item => item.type === type)
-      .map(item => `<tr><td>${item.name}</td><td>${item.value}</td><td><button onclick='applyPoints(${item.value})'>Применить</button></td></tr>`)
-      .join("");
-    return `<table><tr><th>Название</th><th>Баллы</th><th></th></tr>${rows}</table>`;
-  }
-
-  function applyPoints(val) {
-    currentPoints += val;
-    updateBalance();
-  }
-
-  function updateBalance() {
-    document.getElementById("currentPoints").innerText = `🐾 ${currentPoints}`;
-  }
-
-  function addRecord() {
-    const name = document.getElementById("nameInput").value.trim();
-    const type = document.getElementById("typeInput").value;
-    const value = parseInt(document.getElementById("valueInput").value);
-    if (!name || isNaN(value)) return alert("Заполните все поля корректно!");
-    справочник.push({ type, name, value });
-    render();
-  }
-
-  window.onload = () => {
-    const gapiScript = document.createElement('script');
-    gapiScript.src = 'https://apis.google.com/js/api.js';
-    gapiScript.onload = gapiLoaded;
-    document.body.appendChild(gapiScript);
-
-    const gisScript = document.createElement('script');
-    gisScript.src = 'https://accounts.google.com/gsi/client';
-    gisScript.onload = gisLoaded;
-    document.body.appendChild(gisScript);
-  };
-</script>
-
+  </script>
 </body>
 </html>
